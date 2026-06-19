@@ -38,12 +38,20 @@
   }
 
   header{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
     padding:calc(env(safe-area-inset-top) + 20px) 20px 14px;
     border-bottom:1px solid var(--hair);
     background:var(--surface);
   }
   .title{font-size:24px;font-weight:680;letter-spacing:-0.02em;margin:0;}
   .date{font-size:13px;color:var(--muted);margin-top:3px;letter-spacing:0.01em;}
+  .add-btn{
+    flex:none;width:38px;height:38px;border-radius:50%;border:none;
+    background:var(--ink);color:#fff;font-size:25px;line-height:0;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    padding-bottom:2px;transition:transform .12s ease;
+  }
+  .add-btn:active{transform:scale(.92);}
 
   main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 16px 24px;}
 
@@ -128,17 +136,64 @@
   .tab svg{width:24px;height:24px;stroke:currentColor;stroke-width:1.7;fill:none;}
   .tab.active{color:var(--ink);}
 
+  /* Add-dose sheet */
+  .sheet-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.35);
+    opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:40;
+  }
+  .sheet-overlay.show{opacity:1;pointer-events:auto;}
+  .sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:50;
+    max-width:440px;margin:0 auto;background:var(--surface);
+    border-radius:22px 22px 0 0;
+    padding:10px 20px calc(env(safe-area-inset-bottom) + 22px);
+    transform:translateY(110%);transition:transform .28s cubic-bezier(.32,.72,0,1);
+    box-shadow:0 -8px 30px rgba(0,0,0,.18);
+  }
+  .sheet.show{transform:translateY(0);}
+  .sheet-handle{width:38px;height:5px;border-radius:3px;background:var(--hair);margin:6px auto 14px;}
+  .sheet-title{font-size:19px;font-weight:680;margin:0;letter-spacing:-0.01em;}
+  .sheet-label{font-size:12px;font-weight:680;color:var(--muted);margin:18px 2px 9px;text-transform:uppercase;letter-spacing:.05em;}
+  .med-choices{display:flex;gap:8px;}
+  .choice{
+    flex:1;border:1.5px solid var(--hair);background:var(--surface);color:var(--ink);
+    font:inherit;font-size:14px;font-weight:560;padding:13px 6px;border-radius:13px;cursor:pointer;
+    transition:border-color .15s, background .15s, color .15s, transform .1s;
+  }
+  .choice:active{transform:scale(.97);}
+  .choice[data-med="paracetamol"].sel{background:var(--para);border-color:var(--para);color:#fff;}
+  .choice[data-med="ibuprofen"].sel{background:var(--ibu);border-color:var(--ibu);color:#fff;}
+  .choice[data-med="codeine"].sel{background:var(--cod);border-color:var(--cod);color:#fff;}
+  .when-input{
+    width:100%;font:inherit;font-size:16px;color:var(--ink);
+    border:1.5px solid var(--hair);border-radius:13px;padding:12px 13px;background:var(--surface);
+  }
+  .sheet-actions{display:flex;gap:10px;margin-top:24px;}
+  .btn-cancel{
+    flex:1;border:none;background:var(--bg);color:var(--ink);font:inherit;font-size:16px;font-weight:560;
+    padding:14px;border-radius:14px;cursor:pointer;transition:transform .1s;
+  }
+  .btn-add{
+    flex:2;border:none;background:var(--go);color:#fff;font:inherit;font-size:16px;font-weight:620;
+    padding:14px;border-radius:14px;cursor:pointer;transition:transform .1s, background .15s;
+  }
+  .btn-add:disabled{background:var(--hair);color:var(--muted);cursor:default;}
+  .btn-add:not(:disabled):active,.btn-cancel:active{transform:scale(.98);}
+
   @media (prefers-reduced-motion: reduce){
     .card{transition:background .25s ease;opacity:1;transform:none;}
-    .prog{transition:none;}
+    .prog,.sheet,.sheet-overlay{transition:none;}
   }
 </style>
 </head>
 <body>
 <div class="app">
   <header>
-    <h1 class="title">Tablet tracker</h1>
-    <div class="date" id="date"></div>
+    <div>
+      <h1 class="title">Tablet tracker</h1>
+      <div class="date" id="date"></div>
+    </div>
+    <button class="add-btn" id="addBtn" aria-label="Log a past dose">+</button>
   </header>
 
   <main>
@@ -162,6 +217,25 @@
   </nav>
 </div>
 
+<!-- Add-dose sheet -->
+<div class="sheet-overlay" id="overlay"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <h2 class="sheet-title">Log a past dose</h2>
+  <div class="sheet-label">Which tablet?</div>
+  <div class="med-choices">
+    <button class="choice" data-med="paracetamol">Paracetamol</button>
+    <button class="choice" data-med="ibuprofen">Ibuprofen</button>
+    <button class="choice" data-med="codeine">Codeine</button>
+  </div>
+  <div class="sheet-label">When did you take it?</div>
+  <input type="datetime-local" id="whenInput" class="when-input">
+  <div class="sheet-actions">
+    <button class="btn-cancel" id="cancelBtn">Cancel</button>
+    <button class="btn-add" id="confirmBtn" disabled>Add dose</button>
+  </div>
+</div>
+
 <script>
   const MEDS = {
     paracetamol: { name:'Paracetamol', hours:4 },
@@ -170,13 +244,13 @@
   };
   const ORDER = ['paracetamol','ibuprofen','codeine'];
   const MAX = 4;
-  const STORE_KEY = 'tabletTracker.doses';
+  const STORE_KEY = 'tabletTracker.doses';   // keep unchanged so existing data is preserved
 
   let doses = [];
-  let memoryStore = null;   // fallback if device storage is unavailable
+  let memoryStore = null;
   const el = {};
 
-  /* ---------- storage: device localStorage, with in-memory fallback ---------- */
+  /* ---------- storage ---------- */
   function readRaw(){
     try{ return window.localStorage.getItem(STORE_KEY); }
     catch(e){ return memoryStore; }
@@ -214,6 +288,12 @@
     const h = Math.floor(s/3600), mn = Math.floor((s%3600)/60), sec = s%60;
     const p = n=>String(n).padStart(2,'0');
     return h>0 ? `${h}:${p(mn)}:${p(sec)}` : `${mn}:${p(sec)}`;
+  }
+  function addDose(med, time){
+    doses.push({ id: Date.now()+'-'+Math.random().toString(36).slice(2,7), med, time });
+    save();
+    updateTrack();
+    if(document.getElementById('log-view').style.display !== 'none') renderLog();
   }
 
   /* ---------- track view ---------- */
@@ -283,16 +363,14 @@
 
   function takeDose(key){
     if(!statusFor(key).canPress) return;
-    doses.push({ id: Date.now()+'-'+Math.random().toString(36).slice(2,7), med:key, time: Date.now() });
-    save();
-    updateTrack();
+    addDose(key, Date.now());
   }
 
   /* ---------- log view ---------- */
   function renderLog(){
     const c = document.getElementById('log');
     if(doses.length === 0){
-      c.innerHTML = '<div class="empty">No doses logged yet.<br>Tap a medication on the Track tab when you take one.</div>';
+      c.innerHTML = '<div class="empty">No doses logged yet.<br>Tap a medication on the Track tab, or use + to add one you forgot.</div>';
       return;
     }
     const sorted = [...doses].sort((a,b)=>b.time-a.time);
@@ -324,6 +402,51 @@
     document.getElementById('tab-log').classList.toggle('active', v==='log');
     if(v==='log') renderLog();
   }
+
+  /* ---------- add-dose sheet ---------- */
+  const overlay = document.getElementById('overlay');
+  const sheet = document.getElementById('sheet');
+  const whenInput = document.getElementById('whenInput');
+  const confirmBtn = document.getElementById('confirmBtn');
+  let selectedMed = null;
+
+  function localDatetimeValue(d){
+    const p = n=>String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function openSheet(){
+    selectedMed = null;
+    document.querySelectorAll('.choice').forEach(c=>c.classList.remove('sel'));
+    const now = new Date();
+    whenInput.value = localDatetimeValue(now);
+    whenInput.max = localDatetimeValue(now);
+    confirmBtn.disabled = true;
+    overlay.classList.add('show');
+    sheet.classList.add('show');
+  }
+  function closeSheet(){
+    overlay.classList.remove('show');
+    sheet.classList.remove('show');
+  }
+  document.querySelectorAll('.choice').forEach(c=>{
+    c.addEventListener('click', ()=>{
+      document.querySelectorAll('.choice').forEach(x=>x.classList.remove('sel'));
+      c.classList.add('sel');
+      selectedMed = c.dataset.med;
+      confirmBtn.disabled = false;
+    });
+  });
+  confirmBtn.addEventListener('click', ()=>{
+    if(!selectedMed) return;
+    let t = new Date(whenInput.value).getTime();
+    if(isNaN(t)) t = Date.now();
+    if(t > Date.now()) t = Date.now();   // can't take a tablet in the future
+    addDose(selectedMed, t);
+    closeSheet();
+  });
+  document.getElementById('addBtn').addEventListener('click', openSheet);
+  document.getElementById('cancelBtn').addEventListener('click', closeSheet);
+  overlay.addEventListener('click', closeSheet);
 
   /* ---------- init ---------- */
   function tickDate(){
