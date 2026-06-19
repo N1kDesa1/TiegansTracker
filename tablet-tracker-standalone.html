@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Tablet tracker</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tablet tracker">
+<meta name="theme-color" content="#f5f6f8">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%231faa59'/%3E%3Cpath d='M90 52v76M52 90h76' stroke='white' stroke-width='14' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#f5f6f8;
+    --surface:#ffffff;
+    --ink:#1b1d21;
+    --muted:#767b85;
+    --hair:#e7e9ee;
+    --go:#1faa59;
+    --wait:#d8443a;
+    --rest:#586072;
+    --para:#3a6ea5;
+    --ibu:#e08a2b;
+    --cod:#8a5cc4;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    max-width:440px;margin:0 auto;min-height:100%;
+    display:flex;flex-direction:column;
+    background:var(--bg);
+  }
+
+  header{
+    padding:calc(env(safe-area-inset-top) + 20px) 20px 14px;
+    border-bottom:1px solid var(--hair);
+    background:var(--surface);
+  }
+  .title{font-size:24px;font-weight:680;letter-spacing:-0.02em;margin:0;}
+  .date{font-size:13px;color:var(--muted);margin-top:3px;letter-spacing:0.01em;}
+
+  main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 16px 24px;}
+
+  .cards{display:flex;flex-direction:column;gap:14px;}
+  .card{
+    position:relative;overflow:hidden;
+    width:100%;text-align:left;border:none;border-radius:20px;
+    padding:20px 20px 22px;color:#fff;cursor:pointer;
+    font:inherit;
+    transition:transform .12s ease, background .25s ease, box-shadow .25s ease;
+    opacity:0;transform:translateY(10px);
+    box-shadow:0 1px 2px rgba(20,22,30,.06);
+  }
+  .card.in{opacity:1;transform:translateY(0);}
+  .card:disabled{cursor:default;}
+  .card:not(:disabled):active{transform:scale(.985);}
+
+  .card.go{background:var(--go);}
+  .card.wait{background:var(--wait);}
+  .card.rest{background:var(--rest);}
+
+  .card-top{display:flex;align-items:center;gap:9px;margin-bottom:14px;}
+  .name{font-size:18px;font-weight:620;letter-spacing:-0.01em;}
+  .pill{
+    margin-left:auto;font-size:11px;font-weight:600;letter-spacing:.04em;
+    text-transform:uppercase;background:rgba(255,255,255,.18);
+    padding:4px 9px;border-radius:999px;
+  }
+
+  .big{display:flex;align-items:baseline;gap:10px;min-height:46px;}
+  .bignum{
+    font-size:40px;font-weight:640;letter-spacing:-0.01em;line-height:1;
+    font-variant-numeric:tabular-nums;
+  }
+  .bignum.mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:38px;letter-spacing:-0.02em;}
+  .bigsub{font-size:13px;font-weight:500;opacity:.85;}
+
+  .meta{
+    margin-top:12px;font-size:13px;opacity:.9;
+    font-variant-numeric:tabular-nums;letter-spacing:.01em;
+  }
+
+  .prog{position:absolute;left:0;bottom:0;height:5px;width:0;background:rgba(255,255,255,.4);transition:width .9s linear;}
+  .track-line{position:absolute;left:0;bottom:0;height:5px;width:100%;background:rgba(255,255,255,.14);}
+
+  .day-head{
+    font-size:12px;font-weight:680;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted);margin:18px 4px 8px;
+  }
+  .day-head:first-child{margin-top:2px;}
+  .log-row{
+    display:flex;align-items:center;gap:13px;
+    background:var(--surface);border:1px solid var(--hair);
+    border-radius:14px;padding:13px 14px;margin-bottom:8px;
+  }
+  .dot{width:11px;height:11px;border-radius:50%;flex:none;background:#fff;}
+  .dot.paracetamol{background:var(--para);}
+  .dot.ibuprofen{background:var(--ibu);}
+  .dot.codeine{background:var(--cod);}
+  .log-info{flex:1;min-width:0;}
+  .log-med{font-size:15px;font-weight:560;}
+  .log-time{font-size:13px;color:var(--muted);margin-top:1px;font-variant-numeric:tabular-nums;}
+  .del{
+    border:none;background:transparent;color:var(--wait);
+    font:inherit;font-size:14px;font-weight:560;padding:6px 8px;cursor:pointer;border-radius:8px;
+  }
+  .del:active{background:rgba(216,68,58,.1);}
+  .empty{
+    text-align:center;color:var(--muted);font-size:14px;line-height:1.5;
+    padding:48px 30px;
+  }
+
+  nav{
+    display:flex;border-top:1px solid var(--hair);background:var(--surface);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .tab{
+    flex:1;border:none;background:transparent;font:inherit;cursor:pointer;
+    padding:11px 0 9px;color:var(--muted);font-size:11px;font-weight:560;
+    display:flex;flex-direction:column;align-items:center;gap:3px;letter-spacing:.02em;
+  }
+  .tab svg{width:24px;height:24px;stroke:currentColor;stroke-width:1.7;fill:none;}
+  .tab.active{color:var(--ink);}
+
+  @media (prefers-reduced-motion: reduce){
+    .card{transition:background .25s ease;opacity:1;transform:none;}
+    .prog{transition:none;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1 class="title">Tablet tracker</h1>
+    <div class="date" id="date"></div>
+  </header>
+
+  <main>
+    <section id="track-view">
+      <div class="cards" id="cards"></div>
+    </section>
+    <section id="log-view" style="display:none;">
+      <div id="log"></div>
+    </section>
+  </main>
+
+  <nav>
+    <button class="tab active" id="tab-track" onclick="setView('track')">
+      <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 12h6M12 9v6"/></svg>
+      Track
+    </button>
+    <button class="tab" id="tab-log" onclick="setView('log')">
+      <svg viewBox="0 0 24 24"><path d="M5 5h14M5 12h14M5 19h14"/></svg>
+      Log
+    </button>
+  </nav>
+</div>
+
+<script>
+  const MEDS = {
+    paracetamol: { name:'Paracetamol', hours:4 },
+    ibuprofen:   { name:'Ibuprofen',   hours:4 },
+    codeine:     { name:'Codeine',     hours:6 }
+  };
+  const ORDER = ['paracetamol','ibuprofen','codeine'];
+  const MAX = 4;
+  const STORE_KEY = 'tabletTracker.doses';
+
+  let doses = [];
+  let memoryStore = null;   // fallback if device storage is unavailable
+  const el = {};
+
+  /* ---------- storage: device localStorage, with in-memory fallback ---------- */
+  function readRaw(){
+    try{ return window.localStorage.getItem(STORE_KEY); }
+    catch(e){ return memoryStore; }
+  }
+  function writeRaw(v){
+    try{ window.localStorage.setItem(STORE_KEY, v); }
+    catch(e){ memoryStore = v; }
+  }
+  function load(){
+    const raw = readRaw();
+    try{ doses = raw ? JSON.parse(raw) : []; }
+    catch(e){ doses = []; }
+  }
+  function save(){ writeRaw(JSON.stringify(doses)); }
+
+  /* ---------- helpers ---------- */
+  function isToday(t){
+    const d = new Date(t), n = new Date();
+    return d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate();
+  }
+  function statusFor(key){
+    const m = MEDS[key];
+    const list = doses.filter(d=>d.med===key).sort((a,b)=>b.time-a.time);
+    const todayCount = list.filter(d=>isToday(d.time)).length;
+    const last = list[0];
+    const now = Date.now();
+    const cdEnd = last ? last.time + m.hours*3600000 : 0;
+    const inCooldown = now < cdEnd;
+    const maxed = todayCount >= MAX;
+    return { todayCount, last, cdEnd, inCooldown, maxed, canPress: !inCooldown && !maxed, now, hours:m.hours };
+  }
+  function fmt(ms){
+    if(ms<0) ms=0;
+    const s = Math.floor(ms/1000);
+    const h = Math.floor(s/3600), mn = Math.floor((s%3600)/60), sec = s%60;
+    const p = n=>String(n).padStart(2,'0');
+    return h>0 ? `${h}:${p(mn)}:${p(sec)}` : `${mn}:${p(sec)}`;
+  }
+
+  /* ---------- track view ---------- */
+  function buildCards(){
+    const wrap = document.getElementById('cards');
+    ORDER.forEach((key,i)=>{
+      const m = MEDS[key];
+      const btn = document.createElement('button');
+      btn.className = 'card';
+      btn.innerHTML = `
+        <div class="card-top"><span class="name">${m.name}</span><span class="pill" data-pill></span></div>
+        <div class="big"><span class="bignum" data-num></span><span class="bigsub" data-sub></span></div>
+        <div class="meta" data-meta></div>
+        <span class="track-line" data-tline style="display:none;"></span>
+        <span class="prog" data-prog></span>`;
+      btn.addEventListener('click', ()=>takeDose(key));
+      wrap.appendChild(btn);
+      el[key] = {
+        card: btn,
+        num: btn.querySelector('[data-num]'),
+        sub: btn.querySelector('[data-sub]'),
+        meta: btn.querySelector('[data-meta]'),
+        pill: btn.querySelector('[data-pill]'),
+        prog: btn.querySelector('[data-prog]'),
+        tline: btn.querySelector('[data-tline]')
+      };
+      setTimeout(()=>btn.classList.add('in'), 60*i + 40);
+    });
+  }
+
+  function updateTrack(){
+    for(const key of ORDER){
+      const e = el[key], st = statusFor(key);
+      e.meta.textContent = `${st.todayCount} of ${MAX} today · every ${st.hours}h`;
+
+      if(st.inCooldown){
+        e.card.className = 'card in wait';
+        e.card.disabled = true;
+        e.num.className = 'bignum mono';
+        e.num.textContent = fmt(st.cdEnd - st.now);
+        e.sub.textContent = 'until next dose';
+        e.pill.textContent = 'Wait';
+        const elapsed = (st.now - st.last.time) / (st.hours*3600000);
+        e.tline.style.display = 'block';
+        e.prog.style.width = Math.max(0, Math.min(100, elapsed*100)) + '%';
+      } else if(st.maxed){
+        e.card.className = 'card in rest';
+        e.card.disabled = true;
+        e.num.className = 'bignum';
+        e.num.textContent = 'Done for today';
+        e.sub.textContent = 'resets at midnight';
+        e.pill.textContent = 'Max';
+        e.tline.style.display = 'none';
+        e.prog.style.width = '0';
+      } else {
+        e.card.className = 'card in go';
+        e.card.disabled = false;
+        e.num.className = 'bignum';
+        e.num.textContent = 'Take now';
+        e.sub.textContent = '';
+        e.pill.textContent = 'Ready';
+        e.tline.style.display = 'none';
+        e.prog.style.width = '0';
+      }
+    }
+  }
+
+  function takeDose(key){
+    if(!statusFor(key).canPress) return;
+    doses.push({ id: Date.now()+'-'+Math.random().toString(36).slice(2,7), med:key, time: Date.now() });
+    save();
+    updateTrack();
+  }
+
+  /* ---------- log view ---------- */
+  function renderLog(){
+    const c = document.getElementById('log');
+    if(doses.length === 0){
+      c.innerHTML = '<div class="empty">No doses logged yet.<br>Tap a medication on the Track tab when you take one.</div>';
+      return;
+    }
+    const sorted = [...doses].sort((a,b)=>b.time-a.time);
+    let html = '', lastDay = '';
+    for(const d of sorted){
+      const dt = new Date(d.time);
+      const day = dt.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
+      if(day !== lastDay){ html += `<div class="day-head">${day}</div>`; lastDay = day; }
+      const time = dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+      html += `<div class="log-row">
+        <span class="dot ${d.med}"></span>
+        <div class="log-info"><div class="log-med">${MEDS[d.med].name}</div><div class="log-time">${time}</div></div>
+        <button class="del" onclick="deleteDose('${d.id}')">Delete</button>
+      </div>`;
+    }
+    c.innerHTML = html;
+  }
+  function deleteDose(id){
+    doses = doses.filter(d=>d.id!==id);
+    save();
+    renderLog();
+  }
+
+  /* ---------- view switching ---------- */
+  function setView(v){
+    document.getElementById('track-view').style.display = v==='track' ? 'block' : 'none';
+    document.getElementById('log-view').style.display   = v==='log'   ? 'block' : 'none';
+    document.getElementById('tab-track').classList.toggle('active', v==='track');
+    document.getElementById('tab-log').classList.toggle('active', v==='log');
+    if(v==='log') renderLog();
+  }
+
+  /* ---------- init ---------- */
+  function tickDate(){
+    document.getElementById('date').textContent =
+      new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  }
+  buildCards();
+  tickDate();
+  load();
+  updateTrack();
+  setInterval(()=>{ updateTrack(); tickDate(); }, 1000);
+</script>
+</body>
+</html>
